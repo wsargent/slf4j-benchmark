@@ -8,10 +8,12 @@ ThisBuild / organizationName := "example"
 lazy val root = (project in file("."))
   .settings(
     name := "slf4j-benchmark",
+    resolvers += Resolver.jcenterRepo,
     libraryDependencies += scalaTest % Test,
     libraryDependencies += "org.slf4j" % "slf4j-api" % "1.7.25",
     libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3",
     libraryDependencies += "net.logstash.logback" % "logstash-logback-encoder" % "5.3",
+    libraryDependencies += "com.sizmek.fsi" %% "fsi-macros" % "0.5.0",
     addCommandAlias("jmhRun",
       s""";jmh:run -i 20 -wi 10 -f1 -t1""".stripMargin)
   ).enablePlugins(JmhPlugin)
