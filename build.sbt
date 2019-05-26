@@ -13,7 +13,7 @@ lazy val root = (project in file("."))
          |;jmh:run -i 20 -wi 10 -f1 -t1""".stripMargin),
     addCommandAlias("jmhLatencyRun",
       s""";project slf4jbench-logback
-         |;jmh:run -i 20 -wi 10 -f1 -t1 .*SLF4JBenchmark.*""".stripMargin),
+         |;jmh:run -rf text -rff latency.txt -i 20 -wi 10 -f1 -t1 .*SLF4JBenchmark.*""".stripMargin),
     addCommandAlias("jmhThroughputRun",
       s""";project slf4jbench-logback
          |;jmh:run -i 20 -wi 10 -f1 -t1 com.tersesystems.slf4jbench.logback.FileAppenderBenchmark""".stripMargin)

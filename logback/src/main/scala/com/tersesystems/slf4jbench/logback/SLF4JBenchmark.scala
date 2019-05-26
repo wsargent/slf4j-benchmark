@@ -60,6 +60,6 @@ class SLF4JBenchmark {
 
 }
 
-object SLF4JBenchmark extends BenchmarkBase("/file-appender.xml") {
+object SLF4JBenchmark extends BenchmarkBase("/asyncconsole-appender.xml") {
   val longAdder = new AtomicLong()
 }

@@ -1,6 +1,46 @@
 # SLF4J Benchmark
 
-Benchmarks are run on the following
+This is a benchmark to put some numbers down on the costs and overhead of logging using SLF4J and Logback.
+
+## TL;DR
+
+### Latency Benchmarks
+ 
+When logging is disabled:
+
+* Using a conditional statement such as `if (logger.isDebugEnabled) { ... }` takes 1.6 nanoseconds.  
+* A raw statement such as `logger.debug("hello world")` takes 1.8 nanoseconds.
+* A statement that uses string interpolation or string `logger.debug("hello " + name)` takes 60 nanoseconds.
+
+When logging is enabled, CPU time depends heavily on the appender:
+
+* With a no-op appender, logging takes between 24 and 84 nanoseconds.
+* With a disruptor based async appender logging to console, between 150 and 350 nanoseconds.
+* With a straight file appender, between 636 and 850 nanoseconds.
+
+### Throughput Benchmarks
+
+The appenders are measured in terms of throughput, rather than latency.
+
+* A disruptor based async appender can perform ~3677 ops/ms against a no-op appender.
+* A file appender can perform ~1789 ops/ms, generating 56 GB of data in 5 minutes.
+* A disruptor based async appender can perform 11879 ops against a file appender, but that's because it's lossy and will throw things out.
+
+Note that it took five minutes to run through the 56 GB of data with `wc testfile.log` just to count the words.
+
+### Conclusions
+
+**Logging is free, logs are expensive.**
+
+Adding a log statement has no appreciable CPU or IO costs.  Even when not contained in a conditional, the overhead is trivial in normal program flow compared to other common operations like switching between threads -- see [Operation Cost in CPU Cycles](http://ithare.com/infographics-operation-costs-in-cpu-clock-cycles/) for more details.
+
+While you can add logs whereever you feel like, you should not log indiscriminately.  If logging is ever a significant IO overhead, then that is in itself a concern.  Logs -- the product of logging -- are not free.  Transmitting, storing, and processing logs is a significant cost for organizations, and so you should keep logging available but disabled so that it is only turned on when there is a need.
+
+There is a case to be made for logging the control flow of every request/response, first noted in [Log Everything All the Time](http://highscalability.com/log-everything-all-time).  This has been popularized by Honeycomb as [event based logging](https://docs.honeycomb.io/learning-about-observability/events-metrics-logs/#events-vs-logs): but with a significant number of events, you may want to use [dynamic sampling](https://www.honeycomb.io/blog/dynamic-sampling-by-example/) to limit processing to only statisticaly interesting events.
+
+## Platform
+
+Benchmarks are run on a Dell XPS 15 9560.  This is a pretty good laptop, but it's still a laptop.
 
 ```text
 $ uname -a
@@ -12,8 +52,6 @@ About:
 ```text
 Intel® Core™ i7-7700HQ CPU @ 2.80GHz × 8 
 ```
-
-[Operation Cost in CPU Cycles](http://ithare.com/infographics-operation-costs-in-cpu-clock-cycles/)
 
 ## Logback
 
@@ -158,7 +196,7 @@ With a raw file appender that is not flushing immediately, logging takes between
 
 Let's run with an async appender that writes to console.  We use the LoggingEventAsyncDisruptorAppender.
 
-We have have to be careful with this disruptor, because it logs using an internal buffer.  If the buffer fills up completely, the appender will start rejecting log events completely, which makes it really fast in benchmarks, but isn't what we really want.
+We have have to be careful with this disruptor, because it logs using an internal buffer.  If the buffer fills up completely, the appender will start rejecting log events completely, which makes it really fast in benchmarks, but isn't what we really want.  So we use the console appender here.
 
 ```xml
 <configuration>
@@ -180,7 +218,13 @@ We have have to be careful with this disruptor, because it logs using an interna
 ```
 
 ```text
-TODO
+Benchmark                                           Mode  Cnt    Score    Error  Units
+SLF4JBenchmark.boundedDebugWithStringInterpolation  avgt   20  225.486 ±  5.678  ns/op
+SLF4JBenchmark.boundedDebugWithTemplate             avgt   20  339.603 ±  8.662  ns/op
+SLF4JBenchmark.rawDebug                             avgt   20  150.770 ±  4.153  ns/op
+SLF4JBenchmark.rawDebugWithFastStringInterpolation  avgt   20  216.432 ±  9.229  ns/op
+SLF4JBenchmark.rawDebugWithStringInterpolation      avgt   20  248.706 ±  7.272  ns/op
+SLF4JBenchmark.rawDebugWithTemplate                 avgt   20  348.892 ± 12.479  ns/op
 ```
 
 ### Appenders
@@ -288,3 +332,7 @@ and generates a very large file:
 ❱ wc testFile.log
 547633050  2738165250 59144369400 testFile.log
 ```
+
+## Log4J 2
+
+TODO
