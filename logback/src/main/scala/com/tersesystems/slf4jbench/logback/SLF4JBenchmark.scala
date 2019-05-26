@@ -1,16 +1,16 @@
-package logbackbenchmark
+package com.tersesystems.slf4jbench.logback
 
-import org.slf4j._
-import org.openjdk.jmh.annotations._
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 import com.sizmek.fsi._
+import org.openjdk.jmh.annotations._
+import ch.qos.logback.classic.Level
 
 @BenchmarkMode(Array(Mode.AverageTime))
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
-class LogbackBenchmark {
-  import LogbackBenchmark._
+class SLF4JBenchmark {
+  import SLF4JBenchmark._
 
   /**
     *
@@ -60,8 +60,6 @@ class LogbackBenchmark {
 
 }
 
-object LogbackBenchmark {
-  private val longAdder = new AtomicLong()
-
-  private val logger = LoggerFactory.getLogger(getClass)
+object SLF4JBenchmark extends BenchmarkBase("/file-appender.xml") {
+  val longAdder = new AtomicLong()
 }
