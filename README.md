@@ -34,9 +34,11 @@ Note that it took five minutes to run through the 56 GB of data with `wc testfil
 
 Adding a log statement has no appreciable CPU or IO costs.  Even when not contained in a conditional, the overhead is trivial in normal program flow compared to other common operations like switching between threads -- see [Operation Cost in CPU Cycles](http://ithare.com/infographics-operation-costs-in-cpu-clock-cycles/) for more details.
 
-While you can add logs whereever you feel like, you should not log indiscriminately.  If logging is ever a significant IO overhead, then that is in itself a concern.  Logs -- the product of logging -- are not free.  Transmitting, storing, and processing logs is a significant cost for organizations, and so you should keep logging available but disabled so that it is only turned on when there is a need.
+While you can add logs where you feel like, you should not log indiscriminately.  Logs -- the product of logging -- are not free.  Transmitting, storing, and processing logs is a significant cost for organizations, and so you should keep logging available but disabled so that it is only turned on when there is a need.
 
-There is a case to be made for logging the control flow of every request/response, first noted in [Log Everything All the Time](http://highscalability.com/log-everything-all-time).  This has been popularized by Honeycomb as [event based logging](https://docs.honeycomb.io/learning-about-observability/events-metrics-logs/#events-vs-logs): but with a significant number of events, you may want to use [dynamic sampling](https://www.honeycomb.io/blog/dynamic-sampling-by-example/) to limit processing to only statisticaly interesting events.
+There is a case to be made for logging the control flow of every request/response, first noted in [Log Everything All the Time](http://highscalability.com/log-everything-all-time) and popularized by Honeycomb as [event based logging](https://docs.honeycomb.io/learning-about-observability/events-metrics-logs/#events-vs-logs). but with a significant number of events, you may want to use [dynamic sampling](https://www.honeycomb.io/blog/dynamic-sampling-by-example/) to limit processing to only statistically interesting events.
+
+If logging is ever a significant IO overhead, then you are probably logging indiscriminately.  Change your statements from INFO to DEBUG, or from DEBUG to TRACE, or add a marker and filter so that statements are only logged when the marker is applied.
 
 ## Platform
 
