@@ -2,6 +2,14 @@
 
 This is a benchmark to put some numbers down on the costs and overhead of logging using SLF4J and Logback.
 
+Also checkout my series of posts on Logback:
+
+* [Application Logging in Java: Creating a Logging Framework](https://tersesystems.com/blog/2019/04/23/application-logging-in-java-part-1/)
+* [Application Logging in Java: Adding Configuration](https://tersesystems.com/blog/2019/05/05/application-logging-in-java-part-2/)
+* [Application Logging in Java: Converters](https://tersesystems.com/blog/2019/05/11/application-logging-in-java-part-3/)
+* [Application Logging in Java: Markers](https://tersesystems.com/blog/2019/05/18/application-logging-in-java-part-4/)
+* [Application Logging in Java: Appenders](https://tersesystems.com/blog/2019/05/27/application-logging-in-java-part-5/)
+
 ## TL;DR
 
 ### Latency Benchmarks
