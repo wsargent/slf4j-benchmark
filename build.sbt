@@ -12,7 +12,7 @@ lazy val root = (project in file("."))
       s""";project slf4jbench-logback
          |;jmh:run -i 20 -wi 10 -f1 -t1""".stripMargin),
     addCommandAlias("jmhLatencyRun",
-      s""";project slf4jbench-logback
+      s""";project slf4jbench-log4j2
          |;jmh:run -rf text -rff latency.txt -i 20 -wi 10 -f1 -t1 .*SLF4JBenchmark.*""".stripMargin),
     addCommandAlias("jmhThroughputRun",
       s""";project slf4jbench-logback
@@ -40,7 +40,9 @@ lazy val `slf4jbench-log4j2` = (project in file("log4j2"))
     resolvers += Resolver.jcenterRepo,
     libraryDependencies += scalaTest % Test,
     libraryDependencies += "org.slf4j" % "slf4j-api" % "1.7.25",
+    libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % "2.11.2",
     libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.11.2",
+    libraryDependencies += "org.apache.logging.log4j" % "log4j-slf4j-impl" % "2.11.2",
     libraryDependencies += "com.sizmek.fsi" %% "fsi-macros" % "0.5.0",
     addCommandAlias("jmhRun",
       s""";jmh:run -i 20 -wi 10 -f1 -t1""".stripMargin)

@@ -345,4 +345,48 @@ and generates a very large file:
 
 ## Log4J 2
 
-TODO
+### CPU Time
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration packages="com.tersesystems.slf4jbench.log4j2" status="INFO">
+    <Appenders>
+        <NopAppender name="Nop">
+            <PatternLayout pattern="%-4relative [%thread] %-5level %logger{35} - %msg%n"/>
+        </NopAppender>
+    </Appenders>
+    <Loggers>
+        <Root level="error">
+            <AppenderRef ref="Nop"/>
+        </Root>
+    </Loggers>
+</Configuration>
+```
+
+#### Logging Disabled
+
+Running with logging disabled and a no-op appender:
+
+```text
+Benchmark                                           Mode  Cnt   Score   Error  Units
+SLF4JBenchmark.boundedDebugWithStringInterpolation  avgt   20   2.307 ± 0.009  ns/op
+SLF4JBenchmark.boundedDebugWithTemplate             avgt   20   2.297 ± 0.004  ns/op
+SLF4JBenchmark.rawDebug                             avgt   20   2.311 ± 0.005  ns/op
+SLF4JBenchmark.rawDebugWithFastStringInterpolation  avgt   20  43.312 ± 0.496  ns/op
+SLF4JBenchmark.rawDebugWithStringInterpolation      avgt   20  61.125 ± 0.754  ns/op
+SLF4JBenchmark.rawDebugWithTemplate                 avgt   20   9.218 ± 0.026  ns/op
+```
+
+#### Logging Enabled
+
+Running with logging enabled and a no-op appender:
+
+```text
+Benchmark                                           Mode  Cnt    Score   Error  Units
+SLF4JBenchmark.boundedDebugWithStringInterpolation  avgt   20  195.839 ± 3.219  ns/op
+SLF4JBenchmark.boundedDebugWithTemplate             avgt   20  244.637 ± 3.362  ns/op
+SLF4JBenchmark.rawDebug                             avgt   20  135.656 ± 1.254  ns/op
+SLF4JBenchmark.rawDebugWithFastStringInterpolation  avgt   20  185.214 ± 3.284  ns/op
+SLF4JBenchmark.rawDebugWithStringInterpolation      avgt   20  201.862 ± 2.939  ns/op
+SLF4JBenchmark.rawDebugWithTemplate                 avgt   20  222.883 ± 1.918  ns/op
+```

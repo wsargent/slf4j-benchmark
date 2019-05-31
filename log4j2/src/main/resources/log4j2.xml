@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Configuration status="WARN">
+<Configuration packages="com.tersesystems.slf4jbench.log4j2" status="INFO">
     <Appenders>
-        <Console name="Console" target="SYSTEM_OUT">
-            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
-        </Console>
+        <NopAppender name="Nop">
+            <PatternLayout pattern="%-4relative [%thread] %-5level %logger{35} - %msg%n"/>
+        </NopAppender>
     </Appenders>
     <Loggers>
-        <Root level="error">
-            <AppenderRef ref="Console"/>
+        <Root level="debug">
+            <AppenderRef ref="Nop"/>
         </Root>
     </Loggers>
 </Configuration>
