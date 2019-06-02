@@ -20,21 +20,27 @@ When logging is disabled:
 * A raw statement such as `logger.debug("hello world")` takes 1.8 nanoseconds.
 * A statement that uses string interpolation or string `logger.debug("hello " + name)` takes 60 nanoseconds.
 
-When logging is enabled, CPU time depends heavily on the appender:
+For Logback, when logging is enabled, CPU time depends heavily on the appender:
 
 * With a no-op appender, logging takes between 24 and 84 nanoseconds.
 * With a disruptor based async appender logging to console, between 150 and 350 nanoseconds.
 * With a straight file appender, between 636 and 850 nanoseconds.
 
+There's no huge difference between Log4J 2 and Logback.  Log4J 2 a bit slower in general -- the file appender is faster at 307 nanoseconds -- but these are nanoseconds we're talking about.
+
 ### Throughput Benchmarks
 
 The appenders are measured in terms of throughput, rather than latency.
+
+For logback:
 
 * A disruptor based async appender can perform ~3677 ops/ms against a no-op appender.
 * A file appender can perform ~1789 ops/ms, generating 56 GB of data in 5 minutes.
 * A disruptor based async appender can perform 11879 ops against a file appender, but that's because it's lossy and will throw things out.
 
 Note that it took five minutes to run through the 56 GB of data with `wc testfile.log` just to count the words.
+
+Log4J 2 does have a comprehensive [performance test suite](https://logging.apache.org/log4j/2.x/performance.html#benchmarks) page -- all of the benchmarks are available in the Log4J 2 source code are available, so I'll run through that at some point.  Note that the comparisons that Log4J 2 does against Logback should be disregarded, as they are not up to date or compare apples and oranges, e.g. comparing against `AsyncAppender` instead of [`AsyncDisruptorAppender`](https://github.com/logstash/logstash-logback-encoder/blob/master/src/main/java/net/logstash/logback/appender/AsyncDisruptorAppender.java).
 
 ### Conclusions
 
@@ -65,17 +71,26 @@ Intel® Core™ i7-7700HQ CPU @ 2.80GHz × 8
 
 ## Logback
 
-### CPU Time
+### Latency Benchmarks
 
 This is a benchmark showing how long it takes to log.
 
 #### Raw Debug
 
 ```scala
+package com.tersesystems.slf4jbench.logback
+
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
+
+import com.sizmek.fsi._
+import org.openjdk.jmh.annotations._
+import ch.qos.logback.classic.Level
+
 @BenchmarkMode(Array(Mode.AverageTime))
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
-class LogbackBenchmark {
-  import LogbackBenchmark._
+class SLF4JBenchmark {
+  import SLF4JBenchmark._
 
   @Benchmark
   def rawDebug(): Unit =
@@ -107,11 +122,10 @@ class LogbackBenchmark {
 
 }
 
-object LogbackBenchmark {
-  private val longAdder = new AtomicLong()
-
-  private val logger = LoggerFactory.getLogger(getClass)
+object SLF4JBenchmark extends BenchmarkBase("/asyncconsole-appender.xml") {
+  val longAdder = new AtomicLong()
 }
+
 ```
 
 #### Debug enabled with NOP appender.
@@ -345,27 +359,82 @@ and generates a very large file:
 
 ## Log4J 2
 
-### CPU Time
+### Latency Benchmarks
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<Configuration packages="com.tersesystems.slf4jbench.log4j2" status="INFO">
-    <Appenders>
-        <NopAppender name="Nop">
-            <PatternLayout pattern="%-4relative [%thread] %-5level %logger{35} - %msg%n"/>
-        </NopAppender>
-    </Appenders>
-    <Loggers>
-        <Root level="error">
-            <AppenderRef ref="Nop"/>
-        </Root>
-    </Loggers>
-</Configuration>
+The following file was used for latency bench marks
+
+```scala
+package com.tersesystems.slf4jbench.log4j2
+
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
+
+import org.openjdk.jmh.annotations._
+import com.sizmek.fsi._
+
+@BenchmarkMode(Array(Mode.AverageTime))
+@OutputTimeUnit(TimeUnit.NANOSECONDS)
+class SLF4JBenchmark {
+  import SLF4JBenchmark._
+
+  /**
+    *
+    */
+  @Benchmark
+  def rawDebug(): Unit =
+    logger.debug("hello world!")
+
+  /**
+    *
+    */
+  @Benchmark
+  def rawDebugWithTemplate(): Unit =
+    logger.debug("hello world, {}", longAdder.incrementAndGet())
+
+  /**
+    *
+    */
+  @Benchmark
+  def rawDebugWithStringInterpolation(): Unit =
+    logger.debug(s"hello world, ${longAdder.incrementAndGet()}")
+
+  /**
+    *
+    */
+  @Benchmark
+  def rawDebugWithFastStringInterpolation(): Unit =
+    logger.debug(fs"hello world, ${longAdder.incrementAndGet()}")
+
+  /**
+    *
+    */
+  @Benchmark
+  def boundedDebugWithTemplate(): Unit =
+    if (logger.isDebugEnabled) {
+      logger.debug("hello world, {}", longAdder.incrementAndGet())
+    }
+
+  /**
+    *
+    */
+  @Benchmark
+  def boundedDebugWithStringInterpolation(): Unit =
+    if (logger.isDebugEnabled) {
+      logger.debug(s"hello world, ${longAdder.incrementAndGet()}")
+    }
+
+}
+
+object SLF4JBenchmark {
+  val logger = org.slf4j.LoggerFactory.getLogger(getClass)
+
+  val longAdder = new AtomicLong()
+}
 ```
 
 #### Logging Disabled
 
-Running with logging disabled and a no-op appender:
+Running with logging disabled:
 
 ```text
 Benchmark                                           Mode  Cnt   Score   Error  Units
@@ -377,9 +446,25 @@ SLF4JBenchmark.rawDebugWithStringInterpolation      avgt   20  61.125 ± 0.754  
 SLF4JBenchmark.rawDebugWithTemplate                 avgt   20   9.218 ± 0.026  ns/op
 ```
 
-#### Logging Enabled
+#### NOP appender
 
-Running with logging enabled and a no-op appender:
+Running with logging enabled and the same no-op appender:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration packages="com.tersesystems.slf4jbench.log4j2" status="INFO">
+    <Appenders>
+        <NopAppender name="Nop">
+            <PatternLayout pattern="%-4relative [%thread] %-5level %logger{35} - %msg%n"/>
+        </NopAppender>
+    </Appenders>
+    <Loggers>
+        <Root level="debug">
+            <AppenderRef ref="Nop"/>
+        </Root>
+    </Loggers>
+</Configuration>
+```
 
 ```text
 Benchmark                                           Mode  Cnt    Score   Error  Units
@@ -390,3 +475,210 @@ SLF4JBenchmark.rawDebugWithFastStringInterpolation  avgt   20  185.214 ± 3.284 
 SLF4JBenchmark.rawDebugWithStringInterpolation      avgt   20  201.862 ± 2.939  ns/op
 SLF4JBenchmark.rawDebugWithTemplate                 avgt   20  222.883 ± 1.918  ns/op
 ```
+
+#### File appender
+
+The performance measurements in [Which Log4J2 Appender to Use](https://logging.apache.org/log4j/2.x/performance.html#whichAppender) focus on throughput, rather than latency.  These benchmarks are not the same, because we're
+purely looking at how much latency an individual log statement adds to the operation.
+
+Using a [file appender](https://logging.apache.org/log4j/2.x/manual/appenders.html#FileAppender):
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration packages="com.tersesystems.slf4jbench.log4j2" status="INFO">
+    <Appenders>
+        <File name="MyFile" fileName="app.log">
+            <PatternLayout>
+                <Pattern>%d %p %c{1.} [%t] %m%n</Pattern>
+            </PatternLayout>
+        </File>
+    </Appenders>
+    <Loggers>
+        <Root level="debug">
+            <AppenderRef ref="MyFile"/>
+        </Root>
+    </Loggers>
+</Configuration>
+```
+
+Brings an interesting result:
+
+```text
+Benchmark                                           Mode  Cnt     Score    Error  Units
+SLF4JBenchmark.boundedDebugWithStringInterpolation  avgt   20  2463.822 ± 44.855  ns/op
+SLF4JBenchmark.boundedDebugWithTemplate             avgt   20  2445.093 ± 44.728  ns/op
+SLF4JBenchmark.rawDebug                             avgt   20  2304.122 ± 65.970  ns/op
+SLF4JBenchmark.rawDebugWithFastStringInterpolation  avgt   20  2434.949 ± 42.180  ns/op
+SLF4JBenchmark.rawDebugWithStringInterpolation      avgt   20  2442.609 ± 39.417  ns/op
+SLF4JBenchmark.rawDebugWithTemplate                 avgt   20  2513.569 ± 45.634  ns/op
+```
+
+Using buffered IO set to true and immediate flush set to false:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration packages="com.tersesystems.slf4jbench.log4j2" status="INFO">
+    <Appenders>
+        <File name="MyFile" fileName="app.log">
+            <PatternLayout>
+                <Pattern>%m%n</Pattern>
+            </PatternLayout>
+            <bufferedIO>true</bufferedIO>
+            <immediateFlush>false</immediateFlush>
+            <append>false</append>
+        </File>
+    </Appenders>
+    <Loggers>
+        <Root level="debug">
+            <AppenderRef ref="MyFile"/>
+        </Root>
+    </Loggers>
+</Configuration>
+```
+
+then we get much better results:
+
+```text
+Benchmark                                           Mode  Cnt    Score    Error  Units
+SLF4JBenchmark.boundedDebugWithStringInterpolation  avgt   20  371.541 ±  5.804  ns/op
+SLF4JBenchmark.boundedDebugWithTemplate             avgt   20  405.201 ± 25.560  ns/op
+SLF4JBenchmark.rawDebug                             avgt   20  307.403 ±  5.618  ns/op
+SLF4JBenchmark.rawDebugWithFastStringInterpolation  avgt   20  355.634 ±  5.625  ns/op
+SLF4JBenchmark.rawDebugWithStringInterpolation      avgt   20  394.415 ±  4.232  ns/op
+SLF4JBenchmark.rawDebugWithTemplate                 avgt   20  392.146 ±  5.961  ns/op
+```
+
+#### RandomAccessFile Appender
+
+Using [RandomAccessFileAppender](https://logging.apache.org/log4j/2.x/manual/appenders.html#RandomAccessFileAppender):
+
+```xml
+  <Appenders>
+    <RandomAccessFile name="MyFile" fileName="logs/app.log">
+      <PatternLayout>
+        <Pattern>%d %p %c{1.} [%t] %m%n</Pattern>
+      </PatternLayout>
+    </RandomAccessFile>
+  </Appenders>
+```
+
+shows similar results to the file appender when not using buffered IO:
+
+```text
+Benchmark                                           Mode  Cnt     Score     Error  Units
+SLF4JBenchmark.boundedDebugWithStringInterpolation  avgt   20  2469.665 ±  75.091  ns/op
+SLF4JBenchmark.boundedDebugWithTemplate             avgt   20  2514.523 ±  52.977  ns/op
+SLF4JBenchmark.rawDebug                             avgt   20  2276.292 ±  24.440  ns/op
+SLF4JBenchmark.rawDebugWithFastStringInterpolation  avgt   20  2546.554 ±  72.196  ns/op
+SLF4JBenchmark.rawDebugWithStringInterpolation      avgt   20  2615.754 ± 140.612  ns/op
+SLF4JBenchmark.rawDebugWithTemplate                 avgt   20  2618.460 ± 106.518  ns/op
+```
+
+Using buffered IO:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration packages="com.tersesystems.slf4jbench.log4j2" status="INFO">
+    <Appenders>
+        <RandomAccessFile name="MyFile" fileName="app.log">
+            <PatternLayout>
+                <Pattern>%d %p %c{1.} [%t] %m%n</Pattern>
+            </PatternLayout>
+            <bufferedIO>true</bufferedIO>
+            <immediateFlush>false</immediateFlush>
+            <append>false</append>
+        </RandomAccessFile>
+    </Appenders>
+    <Loggers>
+        <Root level="debug">
+            <AppenderRef ref="MyFile"/>
+        </Root>
+    </Loggers>
+</Configuration>
+```
+
+yields a better result, but one that is still slower than the basic FileAppender:
+
+```text
+Benchmark                                           Mode  Cnt    Score    Error  Units
+SLF4JBenchmark.boundedDebugWithStringInterpolation  avgt   20  850.015 ± 33.969  ns/op
+SLF4JBenchmark.boundedDebugWithTemplate             avgt   20  903.224 ± 46.411  ns/op
+SLF4JBenchmark.rawDebug                             avgt   20  724.294 ± 32.355  ns/op
+SLF4JBenchmark.rawDebugWithFastStringInterpolation  avgt   20  786.999 ± 36.753  ns/op
+SLF4JBenchmark.rawDebugWithStringInterpolation      avgt   20  780.606 ± 24.793  ns/op
+SLF4JBenchmark.rawDebugWithTemplate                 avgt   20  893.437 ± 64.763  ns/op
+```
+
+#### MemoryMappedFileAppender
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration packages="com.tersesystems.slf4jbench.log4j2" status="INFO">
+    <Appenders>
+        <MemoryMappedFile name="MyFile" fileName="app.log">
+            <PatternLayout>
+                <Pattern>%d %p %c{1.} [%t] %m%n</Pattern>
+            </PatternLayout>
+            <immediateFlush>false</immediateFlush>
+            <append>false</append>
+        </MemoryMappedFile>
+    </Appenders>
+    <Loggers>
+        <Root level="debug">
+            <AppenderRef ref="MyFile"/>
+        </Root>
+    </Loggers>
+</Configuration>
+```
+
+yields like results as RandomFile appender, still not as good as FileAppender:
+
+```text
+Benchmark                                           Mode  Cnt    Score     Error  Units
+SLF4JBenchmark.boundedDebugWithStringInterpolation  avgt   20  862.381 ±  30.928  ns/op
+SLF4JBenchmark.boundedDebugWithTemplate             avgt   20  917.074 ± 111.163  ns/op
+SLF4JBenchmark.rawDebug                             avgt   20  709.153 ±  54.056  ns/op
+SLF4JBenchmark.rawDebugWithFastStringInterpolation  avgt   20  868.345 ±  89.826  ns/op
+SLF4JBenchmark.rawDebugWithStringInterpolation      avgt   20  832.783 ±  89.799  ns/op
+SLF4JBenchmark.rawDebugWithTemplate                 avgt   20  831.992 ±  78.422  ns/op
+```
+
+#### Async Appender and No-op Appender
+
+This is the scenario mentioned in [Asynchronous Logging Response Time](https://logging.apache.org/log4j/2.x/performance.html#Asynchronous_Logging_Response_Time) -- note that those benchmarks do not include the LMAX Disruptor based async appender from [logstash-logback-encoder](https://github.com/logstash/logstash-logback-encoder).
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration packages="com.tersesystems.slf4jbench.log4j2" status="INFO">
+    <Appenders>
+        <NopAppender name="Nop">
+            <PatternLayout pattern="%-4relative [%thread] %-5level %logger{35} - %msg%n"/>
+        </NopAppender>
+        <Async name="Async">
+            <AppenderRef ref="Nop"/>
+        </Async>
+    </Appenders>
+    <Loggers>
+        <Root level="debug">
+            <AppenderRef ref="Async"/>
+        </Root>
+    </Loggers>
+</Configuration>
+```
+
+yields worse results than using a straight file appender:
+
+```text
+Benchmark                                           Mode  Cnt     Score    Error  Units
+SLF4JBenchmark.boundedDebugWithStringInterpolation  avgt   20   952.120 ± 17.186  ns/op
+SLF4JBenchmark.boundedDebugWithTemplate             avgt   20  1047.221 ± 18.245  ns/op
+SLF4JBenchmark.rawDebug                             avgt   20   860.273 ± 15.305  ns/op
+SLF4JBenchmark.rawDebugWithFastStringInterpolation  avgt   20   872.357 ± 13.884  ns/op
+SLF4JBenchmark.rawDebugWithStringInterpolation      avgt   20   968.897 ± 20.770  ns/op
+SLF4JBenchmark.rawDebugWithTemplate                 avgt   20   976.926 ± 18.738  ns/op
+```
+
+### Appender Throughput
+
+Log4J2 does have a comprehensive [performance test suite](https://logging.apache.org/log4j/2.x/performance.html#benchmarks) page -- all of the benchmarks are available in the Log4J 2 source code are available in the [log4j-perf](https://github.com/apache/logging-log4j2/tree/master/log4j-perf) module, so I'll run through that at some point.
+

@@ -4,10 +4,13 @@
         <NopAppender name="Nop">
             <PatternLayout pattern="%-4relative [%thread] %-5level %logger{35} - %msg%n"/>
         </NopAppender>
+        <Async name="Async">
+            <AppenderRef ref="Nop"/>
+        </Async>
     </Appenders>
     <Loggers>
         <Root level="debug">
-            <AppenderRef ref="Nop"/>
+            <AppenderRef ref="Async"/>
         </Root>
     </Loggers>
 </Configuration>

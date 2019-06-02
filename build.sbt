@@ -43,6 +43,7 @@ lazy val `slf4jbench-log4j2` = (project in file("log4j2"))
     libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % "2.11.2",
     libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.11.2",
     libraryDependencies += "org.apache.logging.log4j" % "log4j-slf4j-impl" % "2.11.2",
+    libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.11.2" classifier "tests",
     libraryDependencies += "com.sizmek.fsi" %% "fsi-macros" % "0.5.0",
     addCommandAlias("jmhRun",
       s""";jmh:run -i 20 -wi 10 -f1 -t1""".stripMargin)
