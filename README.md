@@ -257,6 +257,50 @@ Appenders are all about throughput.  The throughput that you can generate from L
 
 You will have larger problems about how to store and process your logs before you run into IO bandwidth constraints.
 
+#### File Appender
+
+Running a file appender by itself:
+
+```xml
+<configuration>
+  <statusListener class="ch.qos.logback.core.status.NopStatusListener"/>
+
+<appender name="FILE" class="ch.qos.logback.core.FileAppender">
+    <file>testFile.log</file>
+    <append>false</append>
+    <immediateFlush>false</immediateFlush>
+    <encoder>
+    <pattern>%-4relative [%thread] %-5level %logger{35} - %msg%n</pattern>
+    </encoder>
+</appender>
+
+  <root level="DEBUG">
+    <appender-ref ref="FILE" />
+  </root>
+
+</configuration>
+```
+
+```text
+[info] FileAppenderBenchmark.appendBenchmark       thrpt   20   1789.492 ±  58.814  ops/ms
+```
+
+it runs for 5 minutes:
+
+```text
+[info] # Run complete. Total time: 00:05:02
+```
+
+and generates a very large file:
+
+```text
+❱ ls -lah testFile.log          
+-rw-r--r-- 1 wsargent wsargent 56G May 25 13:52 testFile.log
+
+❱ wc testFile.log
+547633050  2738165250 59144369400 testFile.log
+```
+
 #### Async with No-Op
 
 Running the `LoggingEventAsyncDisruptorAppender` by itself:
@@ -313,55 +357,16 @@ The disruptor is lossy, so when the file appender is too slow and the queue fill
 [info] AsyncFileAppenderBenchmark.appendBenchmark  thrpt   20  11879.276 ± 298.794  ops/ms
 ```
 
-#### File Appender
-
-Running a file appender by itself:
-
-```xml
-<configuration>
-  <statusListener class="ch.qos.logback.core.status.NopStatusListener"/>
-
-<appender name="FILE" class="ch.qos.logback.core.FileAppender">
-    <file>testFile.log</file>
-    <append>false</append>
-    <immediateFlush>false</immediateFlush>
-    <encoder>
-    <pattern>%-4relative [%thread] %-5level %logger{35} - %msg%n</pattern>
-    </encoder>
-</appender>
-
-  <root level="DEBUG">
-    <appender-ref ref="FILE" />
-  </root>
-
-</configuration>
-```
-
-```text
-[info] FileAppenderBenchmark.appendBenchmark       thrpt   20   1789.492 ±  58.814  ops/ms
-```
-
-it runs for 5 minutes:
-
-```text
-[info] # Run complete. Total time: 00:05:02
-```
-
-and generates a very large file:
-
-```text
-❱ ls -lah testFile.log          
--rw-r--r-- 1 wsargent wsargent 56G May 25 13:52 testFile.log
-
-❱ wc testFile.log
-547633050  2738165250 59144369400 testFile.log
-```
-
 ## Log4J 2
 
 ### Latency Benchmarks
 
-The following file was used for latency bench marks
+The performance measurements in [Which Log4J2 Appender to Use](https://logging.apache.org/log4j/2.x/performance.html#whichAppender) focus on throughput, rather than latency.  These benchmarks are not the same, because we're
+purely looking at how much latency an individual log statement adds to the operation.
+
+There is a section, [Asynchronous Logging Response Time](https://logging.apache.org/log4j/2.x/performance.html#Asynchronous_Logging_Response_Time), but because this is shown as a graph and displayed in milliseconds, it doesn't really give a good detailed look.
+
+The following file was used for latency benchmarks:
 
 ```scala
 package com.tersesystems.slf4jbench.log4j2
@@ -377,46 +382,28 @@ import com.sizmek.fsi._
 class SLF4JBenchmark {
   import SLF4JBenchmark._
 
-  /**
-    *
-    */
   @Benchmark
   def rawDebug(): Unit =
     logger.debug("hello world!")
 
-  /**
-    *
-    */
   @Benchmark
   def rawDebugWithTemplate(): Unit =
     logger.debug("hello world, {}", longAdder.incrementAndGet())
 
-  /**
-    *
-    */
   @Benchmark
   def rawDebugWithStringInterpolation(): Unit =
     logger.debug(s"hello world, ${longAdder.incrementAndGet()}")
 
-  /**
-    *
-    */
   @Benchmark
   def rawDebugWithFastStringInterpolation(): Unit =
     logger.debug(fs"hello world, ${longAdder.incrementAndGet()}")
 
-  /**
-    *
-    */
   @Benchmark
   def boundedDebugWithTemplate(): Unit =
     if (logger.isDebugEnabled) {
       logger.debug("hello world, {}", longAdder.incrementAndGet())
     }
 
-  /**
-    *
-    */
   @Benchmark
   def boundedDebugWithStringInterpolation(): Unit =
     if (logger.isDebugEnabled) {
@@ -477,9 +464,6 @@ SLF4JBenchmark.rawDebugWithTemplate                 avgt   20  222.883 ± 1.918 
 ```
 
 #### File appender
-
-The performance measurements in [Which Log4J2 Appender to Use](https://logging.apache.org/log4j/2.x/performance.html#whichAppender) focus on throughput, rather than latency.  These benchmarks are not the same, because we're
-purely looking at how much latency an individual log statement adds to the operation.
 
 Using a [file appender](https://logging.apache.org/log4j/2.x/manual/appenders.html#FileAppender):
 
@@ -645,8 +629,6 @@ SLF4JBenchmark.rawDebugWithTemplate                 avgt   20  831.992 ±  78.42
 
 #### Async Appender and No-op Appender
 
-This is the scenario mentioned in [Asynchronous Logging Response Time](https://logging.apache.org/log4j/2.x/performance.html#Asynchronous_Logging_Response_Time) -- note that those benchmarks do not include the LMAX Disruptor based async appender from [logstash-logback-encoder](https://github.com/logstash/logstash-logback-encoder).
-
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration packages="com.tersesystems.slf4jbench.log4j2" status="INFO">
@@ -666,7 +648,7 @@ This is the scenario mentioned in [Asynchronous Logging Response Time](https://l
 </Configuration>
 ```
 
-yields worse results than using a straight file appender:
+yields:
 
 ```text
 Benchmark                                           Mode  Cnt     Score    Error  Units
