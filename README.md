@@ -12,7 +12,11 @@ Also checkout my series of posts on Logback:
 
 ## TL;DR
 
-Under normal circumstances, there is not a huge difference between Logback and Log4J 2.  If you're logging in background, use a disruptor based async appender and then log to a buffered filewriter, or to network.  When disabled, logging has effectively no cost.  When enabled, it's effectively free to the application, but it's easy to generate huge amount of logs, and most of the costs involve processing those logs downstream.
+Under normal circumstances, there is not a huge difference between Logback and Log4J 2.  
+
+If you're logging in background, use a disruptor based async appender and then log to a buffered filewriter, or to network, and use a shutdown hook.  
+
+When disabled, logging has effectively no cost.  When enabled, it's effectively free to the application, but it's easy to generate huge amount of logs, and most of the costs involve processing those logs downstream.
 
 **Logging is free, logs are expensive.**
 
@@ -31,16 +35,18 @@ For Logback, when logging is disabled:
 For Logback, when logging is enabled, CPU time depends heavily on the appender:
 
 * With a no-op appender, logging takes between 24 and 84 nanoseconds.
-* With a disruptor based async appender logging to no-op, between 150 and 350 nanoseconds.
+* With a [disruptor based async appender](https://github.com/logstash/logstash-logback-encoder/tree/logstash-logback-encoder-6.0#async-appenders) logging to no-op, between 150 and 350 nanoseconds.
 * With a straight file appender with no immediate flush, between 636 and 850 nanoseconds.
 
 For Log4J 2, CPU time also depends on the appender:
 
 * With a no-op appender, logging takes between 135 and 244 nanoseconds.
-* With a disruptor based async appender logging to no-op, between 860 and 1047 nanoseconds.
+* With a [disruptor based async appender](https://logging.apache.org/log4j/2.x/manual/async.html) logging to no-op, between 860 and 1047 nanoseconds.
 * With a straight file appender with buffered IO and no immediate flush, between 307 and 405 nanoseconds.
 
-There's no huge difference between Log4J 2 and Logback.  1000 nanoseconds is 0.001 millisecond.  A decent HTTP response takes around 70 - 100 milliseconds, and a [decent HTTP framework](https://www.playframework.com/) will process around [10K requests a second](https://twitter.com/kevinbowling1/status/764188720140398592) on an AWS c4 instance.  If you're using [event based logging](https://www.honeycomb.io/blog/how-are-structured-logs-different-from-events/), then you'll generate 10K logging events per second, per instance, and then you'll also have a smattering of errors and warnings on top of that in production.  
+Log4J 2 has a section on [response time performance](https://logging.apache.org/log4j/log4j-2.2/performance.html) which bears this out.
+
+There's no huge difference between Log4J 2 and Logback.  1000 nanoseconds is 0.001 millisecond.  A decent HTTP response takes around 70 - 100 milliseconds, and a [decent HTTP framework](https://www.playframework.com/) will process around [10K requests a second](https://twitter.com/kevinbowling1/status/764188720140398592) on an AWS c4 instance.  If you're using [event based logging](https://www.honeycomb.io/blog/how-are-structured-logs-different-from-events/), then you'll generate 10K logging events per second, per instance, and then you'll also have a smattering of errors and warnings on top of that in production.  Logging is not a significant source of latency here.
 
 ### Throughput Benchmarks
 
