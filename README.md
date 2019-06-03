@@ -12,8 +12,16 @@ Also checkout my series of posts on Logback:
 
 ## TL;DR
 
+Under normal circumstances, there is not a huge difference between Logback and Log4J 2.  If you're logging in background, use a disruptor based async appender and then log to a buffered filewriter, or to network.  When disabled, logging has effectively no cost.  When enabled, it's effectively free to the application, but it's easy to generate huge amount of logs, and most of the costs involve processing those logs downstream.
+
+**Logging is free, logs are expensive.**
+
+## Abstract
+   
 ### Latency Benchmarks
- 
+
+The JMH test covers the 99.9% average assuming normal distributions, but doesn't worry about spikes or throughput.  In short, we assume that the application doesn't log at a rate of 128K messages/second, is not I/O or GC bound, and doesn't have a backed up CPU work queue, i.e. CPU utilization is less than 70%.
+
 When logging is disabled:
 
 * Using a conditional statement such as `if (logger.isDebugEnabled) { ... }` takes 1.6 nanoseconds.  
@@ -23,10 +31,16 @@ When logging is disabled:
 For Logback, when logging is enabled, CPU time depends heavily on the appender:
 
 * With a no-op appender, logging takes between 24 and 84 nanoseconds.
-* With a disruptor based async appender logging to console, between 150 and 350 nanoseconds.
-* With a straight file appender, between 636 and 850 nanoseconds.
+* With a disruptor based async appender logging to no-op, between 150 and 350 nanoseconds.
+* With a straight file appender with no immediate flush, between 636 and 850 nanoseconds.
 
-There's no huge difference between Log4J 2 and Logback.  Log4J 2 a bit slower in general -- the file appender is faster at 307 nanoseconds -- but these are nanoseconds we're talking about.
+For Log4J 2, CPU time also depends on the appender:
+
+* With a no-op appender, logging takes between 135 and 244 nanoseconds.
+* With a disruptor based async appender logging to no-op, between 860 and 1047 nanoseconds.
+* With a straight file appender with buffered IO and no immediate flush, between 307 and 405 nanoseconds.
+
+There's no huge difference between Log4J 2 and Logback.  1000 nanoseconds is 0.001 millisecond.  A decent HTTP response takes around 70 - 100 milliseconds, and a decent HTTP framework will process around [10K requests a second](https://info.lightbend.com/white-paper-play-framework-the-jvm-architects-path-to-super-fast-web-app-register.html) on an AWS c4 instance.  If you're using [event based logging](https://www.honeycomb.io/blog/how-are-structured-logs-different-from-events/), then you'll generate 10K logging events per second, per instance, and then you'll also have a smattering of errors and warnings on top of that in production.  
 
 ### Throughput Benchmarks
 
@@ -40,7 +54,11 @@ For logback:
 
 Note that it took five minutes to run through the 56 GB of data with `wc testfile.log` just to count the words.
 
-Log4J 2 does have a comprehensive [performance test suite](https://logging.apache.org/log4j/2.x/performance.html#benchmarks) page -- all of the benchmarks are available in the Log4J 2 source code are available, so I'll run through that at some point.  Note that the comparisons that Log4J 2 does against Logback should be disregarded, as they are not up to date or compare apples and oranges, e.g. comparing against `AsyncAppender` instead of [`AsyncDisruptorAppender`](https://github.com/logstash/logstash-logback-encoder/blob/master/src/main/java/net/logstash/logback/appender/AsyncDisruptorAppender.java).
+For Log4J 2:
+
+All of the benchmarks are available in the Log4J 2 source code are available in the [log4j-perf](https://github.com/apache/logging-log4j2/tree/master/log4j-perf) module, so I'll run through that at some point.
+
+> **NOTE**: the comparisons made in [the Log4J 2 benchmark page](https://logging.apache.org/log4j/2.x/performance.html) does against Logback should be disregarded, as they are not up to date or compare apples and oranges, e.g. comparing against `AsyncAppender` instead of [`AsyncDisruptorAppender`](https://github.com/logstash/logstash-logback-encoder/blob/master/src/main/java/net/logstash/logback/appender/AsyncDisruptorAppender.java).
 
 ### Conclusions
 
@@ -74,6 +92,10 @@ Intel® Core™ i7-7700HQ CPU @ 2.80GHz × 8
 ### Latency Benchmarks
 
 This is a benchmark showing how long it takes to log.
+
+We're not interested in the response time of the system under load. We want to answer the question "how much latency is added by enabling a logging statement with this appender", knowning that [percentile latencies suck](https://theburningmonk.com/2018/10/we-can-do-better-than-percentile-latencies/) in general.  
+
+The JMH test covers the 99.9% average assuming normal distributions, but doesn't worry about spikes or throughput.  In short, we assume that the application doesn't log at a rate of 128K messages/second, is not I/O or GC bound, and doesn't have a backed up CPU work queue, i.e. CPU utilization is less than 70%.
 
 #### Raw Debug
 
@@ -220,17 +242,14 @@ With a raw file appender that is not flushing immediately, logging takes between
 
 Let's run with an async appender that writes to console.  We use the LoggingEventAsyncDisruptorAppender.
 
-We have have to be careful with this disruptor, because it logs using an internal buffer.  If the buffer fills up completely, the appender will start rejecting log events completely, which makes it really fast in benchmarks, but isn't what we really want.  So we use the console appender here.
+We have have to be careful with this disruptor, because it logs using an internal buffer.  If the buffer fills up completely, the appender will start rejecting log events completely, which makes it really fast in benchmarks, but isn't what we really want.  So we use an async appender to a no-op appender.
 
 ```xml
 <configuration>
   <statusListener class="ch.qos.logback.core.status.NopStatusListener"/>
 
   <appender name="ASYNC" class="net.logstash.logback.appender.LoggingEventAsyncDisruptorAppender">
-    <appender class="ch.qos.logback.core.ConsoleAppender">
-      <encoder>
-        <pattern>%-4relative [%thread] %-5level %logger{35} - %msg%n</pattern>
-      </encoder>
+    <appender class="com.tersesystems.slf4jbench.logback.NoOpAppender">
     </appender>
   </appender>
 
@@ -243,12 +262,12 @@ We have have to be careful with this disruptor, because it logs using an interna
 
 ```text
 Benchmark                                           Mode  Cnt    Score    Error  Units
-SLF4JBenchmark.boundedDebugWithStringInterpolation  avgt   20  225.486 ±  5.678  ns/op
-SLF4JBenchmark.boundedDebugWithTemplate             avgt   20  339.603 ±  8.662  ns/op
-SLF4JBenchmark.rawDebug                             avgt   20  150.770 ±  4.153  ns/op
-SLF4JBenchmark.rawDebugWithFastStringInterpolation  avgt   20  216.432 ±  9.229  ns/op
-SLF4JBenchmark.rawDebugWithStringInterpolation      avgt   20  248.706 ±  7.272  ns/op
-SLF4JBenchmark.rawDebugWithTemplate                 avgt   20  348.892 ± 12.479  ns/op
+SLF4JBenchmark.boundedDebugWithStringInterpolation  avgt   20  540.145 ±  6.342  ns/op
+SLF4JBenchmark.boundedDebugWithTemplate             avgt   20  653.907 ±  9.764  ns/op
+SLF4JBenchmark.rawDebug                             avgt   20  420.364 ± 19.027  ns/op
+SLF4JBenchmark.rawDebugWithFastStringInterpolation  avgt   20  555.187 ± 15.458  ns/op
+SLF4JBenchmark.rawDebugWithStringInterpolation      avgt   20  650.889 ± 24.996  ns/op
+SLF4JBenchmark.rawDebugWithTemplate                 avgt   20  727.496 ± 43.636  ns/op
 ```
 
 ### Appenders
@@ -359,12 +378,16 @@ The disruptor is lossy, so when the file appender is too slow and the queue fill
 
 ## Log4J 2
 
+There was no attempt made to run Log4J 2 with special options.  In particular, the `log4j2.enable` settings were left at defaults, to accurately reflect the average user experience.
+
 ### Latency Benchmarks
 
 The performance measurements in [Which Log4J2 Appender to Use](https://logging.apache.org/log4j/2.x/performance.html#whichAppender) focus on throughput, rather than latency.  These benchmarks are not the same, because we're
 purely looking at how much latency an individual log statement adds to the operation.
 
-There is a section, [Asynchronous Logging Response Time](https://logging.apache.org/log4j/2.x/performance.html#Asynchronous_Logging_Response_Time), but because this is shown as a graph and displayed in milliseconds, it doesn't really give a good detailed look.
+There is a section, [Asynchronous Logging Response Time](https://logging.apache.org/log4j/2.x/performance.html#Asynchronous_Logging_Response_Time), but because this is shown as a graph and displayed in milliseconds, it doesn't really give a good detailed look.  
+
+> **NOTE**: the comparisons that Log4J 2 does against Logback should be disregarded, as they are not up to date or compare apples and oranges, e.g. comparing against `AsyncAppender` instead of [`AsyncDisruptorAppender`](https://github.com/logstash/logstash-logback-encoder/blob/master/src/main/java/net/logstash/logback/appender/AsyncDisruptorAppender.java).
 
 The following file was used for latency benchmarks:
 
@@ -629,6 +652,8 @@ SLF4JBenchmark.rawDebugWithTemplate                 avgt   20  831.992 ±  78.42
 
 #### Async Appender and No-op Appender
 
+The [AsyncAppender](https://logging.apache.org/log4j/2.x/manual/async.html) gets a great deal of attention in Log4J 2, and has its own [performance section](https://logging.apache.org/log4j/2.x/manual/async.html#Performance).  However, this is still using milliseconds and is mostly about comparisons, instead of absolute numbers.
+
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration packages="com.tersesystems.slf4jbench.log4j2" status="INFO">
@@ -662,5 +687,4 @@ SLF4JBenchmark.rawDebugWithTemplate                 avgt   20   976.926 ± 18.73
 
 ### Appender Throughput
 
-Log4J2 does have a comprehensive [performance test suite](https://logging.apache.org/log4j/2.x/performance.html#benchmarks) page -- all of the benchmarks are available in the Log4J 2 source code are available in the [log4j-perf](https://github.com/apache/logging-log4j2/tree/master/log4j-perf) module, so I'll run through that at some point.
-
+All of the benchmarks are available in the Log4J 2 source code are available in the [log4j-perf](https://github.com/apache/logging-log4j2/tree/master/log4j-perf) module, so I'll run through that at some point.

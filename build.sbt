@@ -9,14 +9,11 @@ lazy val root = (project in file("."))
   .settings(
     name := "slf4jbench",
     addCommandAlias("jmhRun",
-      s""";project slf4jbench-logback
-         |;jmh:run -i 20 -wi 10 -f1 -t1""".stripMargin),
+      s""";jmh:run -i 20 -wi 10 -f1 -t1""".stripMargin),
     addCommandAlias("jmhLatencyRun",
-      s""";project slf4jbench-log4j2
-         |;jmh:run -rf text -rff latency.txt -i 20 -wi 10 -f1 -t1 .*SLF4JBenchmark.*""".stripMargin),
+      s""";jmh:run -rf text -rff latency.txt -i 20 -wi 10 -f1 -t1 .*SLF4JBenchmark.*""".stripMargin),
     addCommandAlias("jmhThroughputRun",
-      s""";project slf4jbench-logback
-         |;jmh:run -i 20 -wi 10 -f1 -t1 com.tersesystems.slf4jbench.logback.FileAppenderBenchmark""".stripMargin)
+      s""";jmh:run -i 20 -wi 10 -f1 -t1 .*AppenderBenchmark""".stripMargin)
   )
   .aggregate(`slf4jbench-logback`)
   .aggregate(`slf4jbench-log4j2`)
