@@ -22,7 +22,7 @@ Under normal circumstances, there is not a huge difference between Logback and L
 
 The JMH test covers the 99.9% average assuming normal distributions, but doesn't worry about spikes or throughput.  In short, we assume that the application doesn't log at a rate of 128K messages/second, is not I/O or GC bound, and doesn't have a backed up CPU work queue, i.e. CPU utilization is less than 70%.
 
-When logging is disabled:
+For Logback, when logging is disabled:
 
 * Using a conditional statement such as `if (logger.isDebugEnabled) { ... }` takes 1.6 nanoseconds.  
 * A raw statement such as `logger.debug("hello world")` takes 1.8 nanoseconds.
@@ -40,7 +40,7 @@ For Log4J 2, CPU time also depends on the appender:
 * With a disruptor based async appender logging to no-op, between 860 and 1047 nanoseconds.
 * With a straight file appender with buffered IO and no immediate flush, between 307 and 405 nanoseconds.
 
-There's no huge difference between Log4J 2 and Logback.  1000 nanoseconds is 0.001 millisecond.  A decent HTTP response takes around 70 - 100 milliseconds, and a decent HTTP framework will process around [10K requests a second](https://info.lightbend.com/white-paper-play-framework-the-jvm-architects-path-to-super-fast-web-app-register.html) on an AWS c4 instance.  If you're using [event based logging](https://www.honeycomb.io/blog/how-are-structured-logs-different-from-events/), then you'll generate 10K logging events per second, per instance, and then you'll also have a smattering of errors and warnings on top of that in production.  
+There's no huge difference between Log4J 2 and Logback.  1000 nanoseconds is 0.001 millisecond.  A decent HTTP response takes around 70 - 100 milliseconds, and a [decent HTTP framework](https://www.playframework.com/) will process around [10K requests a second](https://twitter.com/kevinbowling1/status/764188720140398592) on an AWS c4 instance.  If you're using [event based logging](https://www.honeycomb.io/blog/how-are-structured-logs-different-from-events/), then you'll generate 10K logging events per second, per instance, and then you'll also have a smattering of errors and warnings on top of that in production.  
 
 ### Throughput Benchmarks
 
@@ -48,8 +48,8 @@ The appenders are measured in terms of throughput, rather than latency.
 
 For logback:
 
+* A file appender with immediateFlush=false can perform ~1789 ops/ms, generating 56 GB of data in 5 minutes.
 * A disruptor based async appender can perform ~3677 ops/ms against a no-op appender.
-* A file appender can perform ~1789 ops/ms, generating 56 GB of data in 5 minutes.
 * A disruptor based async appender can perform 11879 ops against a file appender, but that's because it's lossy and will throw things out.
 
 Note that it took five minutes to run through the 56 GB of data with `wc testfile.log` just to count the words.
