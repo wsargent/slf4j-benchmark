@@ -16,11 +16,28 @@ Under normal circumstances, there is not a huge difference between Logback and L
 
 If you're logging in background, use a disruptor based async appender and then log to a buffered filewriter, or to network, and use a shutdown hook.  
 
-When disabled, logging has effectively no cost.  When enabled, it's effectively free to the application, but it's easy to generate huge amount of logs, and most of the costs involve processing those logs downstream.
+When disabled, logging has effectively no cost.  When enabled, logging is still very cheap, but does add up with large amounts of indiscriminate logging.  
+
+If you're running into CPU/memory/IO constraints, that's still not the total cost of logging.  It's very easy to generate huge amount of logs, and most of the costs involve processing those logs downstream.
 
 **Logging is free, logs are expensive.**
 
 ## Abstract
+
+### Platform
+
+Benchmarks are run on a Dell XPS 15 9560.  [Laptop hardware is not the same as server hardware](https://tech.davis-hansson.com/p/tower/), but it is within an order of magnitude.   The hard drive is an SK Hynix PC300 PCIe (1800 MB/sec read & 800 MB/sec writes), which is above what you'd get in [EBS cloud storage](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-io-characteristics.html), but well within what you'd get for centralized logging.
+
+```text
+$ uname -a
+Linux ubuntu-XPS-15-9560 5.0.0-15-generic #16-Ubuntu SMP Mon May 6 17:41:33 UTC 2019 x86_64 x86_64 x86_64 GNU/Linux
+```
+
+About:
+
+```text
+Intel® Core™ i7-7700HQ CPU @ 2.80GHz × 8 
+```
    
 ### Latency Benchmarks
 
@@ -58,7 +75,7 @@ For logback:
 * A disruptor based async appender can perform ~3677 ops/ms against a no-op appender.
 * A disruptor based async appender can perform 11879 ops against a file appender, but that's because it's lossy and will throw things out.
 
-Note that it took five minutes to run through the 56 GB of data with `wc testfile.log` just to count the words.
+Note that it took five minutes to run through the 56 GB of data with `wc testfile.log` just to count the words.  This is, of course, highly dependent on your underlying IO.
 
 For Log4J 2:
 
@@ -77,21 +94,6 @@ While you can add logs where you feel like, you should not log indiscriminately.
 There is a case to be made for logging the control flow of every request/response, first noted in [Log Everything All the Time](http://highscalability.com/log-everything-all-time) and popularized by Honeycomb as [event based logging](https://docs.honeycomb.io/learning-about-observability/events-metrics-logs/#events-vs-logs). but with a significant number of events, you may want to use [dynamic sampling](https://www.honeycomb.io/blog/dynamic-sampling-by-example/) to limit processing to only statistically interesting events.
 
 If logging is ever a significant IO overhead, then you are probably logging indiscriminately.  Change your statements from INFO to DEBUG, or from DEBUG to TRACE, or add a marker and filter so that statements are only logged when the marker is applied.
-
-## Platform
-
-Benchmarks are run on a Dell XPS 15 9560.  This is a pretty good laptop, but it's still a laptop.
-
-```text
-$ uname -a
-Linux ubuntu-XPS-15-9560 5.0.0-15-generic #16-Ubuntu SMP Mon May 6 17:41:33 UTC 2019 x86_64 x86_64 x86_64 GNU/Linux
-```
-
-About:
-
-```text
-Intel® Core™ i7-7700HQ CPU @ 2.80GHz × 8 
-```
 
 ## Logback
 
